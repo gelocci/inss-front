@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Simulador/Extrator CNIS</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<h2>Simulador/Extrator CNIS</h2>
+
+<!-- Tela inicial -->
+<div id="tela-inicial">
+    <button class="simular-btn" onclick="abrirTelaPdf()">Carregar PDF</button>
+    <button class="simular-btn" onclick="abrirTelaManual()">Informar Manualmente</button>
+</div>
+
+<!-- Tela de upload PDF -->
+<div id="tela-pdf" class="escondido">
+    <div class="upload-area">
+        <input type="file" id="file" accept="application/pdf" />
+        <button class="simular-btn" onclick="enviarArquivo()">Calcular</button>
+    </div>
+    <a href="#" onclick="abrirTelaManual();return false;" style="font-size:0.95em;color:#1976d2;margin-top:22px;">ou informar manualmente</a>
+    <div id="preview"></div>
+</div>
+
+<!-- Tela manual -->
+<div id="tela-manual" class="escondido">
+    <table id="table-lancamentos">
+        <thead>
+        <tr>
+            <th>Competência</th>
+            <th>Remuneração</th>
+            <th>Empregador <small>(opcional)</small></th>
+            <th></th>
+        </tr>
+        </thead>
+        <tbody id="tbody-lancamentos"></tbody>
+    </table>
+    <button class="add-btn" onclick="addLinha()">➕ Adicionar Competência</button>
+    <button class="simular-btn" onclick="enviarManual()">Calcular</button>
+    <a href="#" onclick="abrirTelaPdf();return false;" style="font-size:0.95em;color:#1976d2;margin-top:22px;">ou carregar PDF</a>
+    <div id="preview-manual"></div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
