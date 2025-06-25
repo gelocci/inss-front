@@ -50,10 +50,16 @@ function mostrarTabelaPdf(registros, extras) {
     // Junta tudo e só mantém válidos!
     const todos = [
         ...registrosExtraidos.filter(r => r.competencia && !isNaN(r.remuneracao) && r.remuneracao > 0),
-        ...extrasManuais.filter(r => r.competencia && !isNaN(r.remuneracao) && r.remuneracao > 0)
+        ...extrasManuais
+            .filter(r => r.confirmado && r.competencia && !isNaN(r.remuneracao) && r.remuneracao > 0)
+            .map(r => ({
+                competencia: r.competencia,
+                remuneracao: parseFloat(r.remuneracao),
+                nomeEmpregador: r.nomeEmpregador || ''
+            }))
     ];
     if (!todos.length) {
-        document.getElementById('preview').innerHTML = '<div class="media-box">Nenhum dado para simular.</div>';
+        document.getElementById('preview').innerHTML = '<div class="media-box">Nenhum dado para simular.</div>' + renderExtrasInputs();
         return;
     }
     fetch(BACKEND_URL + "/api/cnis/simular-mix", {
@@ -110,48 +116,61 @@ function mostrarTabelaPdf(registros, extras) {
 }
 
 function adicionarLinhaExtra() {
-    extrasManuais.push({ competencia: '', remuneracao: '', nomeEmpregador: '' });
+    extrasManuais.push({ competencia: '', remuneracao: '', nomeEmpregador: '', confirmado: false });
     mostrarTabelaPdf(registrosExtraidos, extrasManuais);
 }
 
-// --- ATENÇÃO AQUI: AJAX só após blur ou Enter ---
 function renderExtrasInputs() {
     if (!extrasManuais.length) return '';
     let linhas = `<table style="margin-top:15px;width:100%;max-width:1100px;"><tbody>`;
     extrasManuais.forEach((ex, idx) => {
-        linhas += `<tr>
-            <td><input type="text" placeholder="mm/aaaa" maxlength="7" value="${ex.competencia || ''}"
-                       onblur="atualizarExtra(${idx})" onkeyup="if(event.key==='Enter'){this.blur();}"/></td>
-            <td><input type="number" step="0.01" min="0" placeholder="Remuneração" value="${ex.remuneracao || ''}"
-                       onblur="atualizarExtra(${idx})" onkeyup="if(event.key==='Enter'){this.blur();}"/></td>
-            <td><input type="text" placeholder="Empregador (opcional)" value="${ex.nomeEmpregador || ''}"
-                       onblur="atualizarExtra(${idx})" onkeyup="if(event.key==='Enter'){this.blur();}"/></td>
-            <td><button class="remove-btn" onclick="removerExtra(${idx})">🗑️</button></td>
-        </tr>`;
+        if (!ex.confirmado) {
+            linhas += `<tr>
+                <td><input type="text" placeholder="mm/aaaa" maxlength="7" value="${ex.competencia || ''}" id="comp${idx}" /></td>
+                <td><input type="number" step="0.01" min="0" placeholder="Remuneração" value="${ex.remuneracao || ''}" id="val${idx}" /></td>
+                <td><input type="text" placeholder="Empregador (opcional)" value="${ex.nomeEmpregador || ''}" id="emp${idx}" /></td>
+                <td>
+                    <button class="confirm-btn" onclick="confirmarExtra(${idx})" title="Confirmar este lançamento">✔</button>
+                    <button class="remove-btn" onclick="removerExtra(${idx})">🗑️</button>
+                </td>
+            </tr>`;
+        } else {
+            linhas += `<tr>
+                <td><input type="text" value="${ex.competencia}" readonly style="background:#f2f8ff;"/></td>
+                <td><input type="number" value="${ex.remuneracao}" readonly style="background:#f2f8ff;"/></td>
+                <td><input type="text" value="${ex.nomeEmpregador || ''}" readonly style="background:#f2f8ff;"/></td>
+                <td>
+                    <button class="edit-btn" onclick="voltarParaEdicao(${idx})" title="Editar lançamento">✏️</button>
+                    <button class="remove-btn" onclick="removerExtra(${idx})" title="Excluir lançamento">❌</button>
+                </td>
+            </tr>`;
+        }
     });
     linhas += '</tbody></table>';
     return linhas;
 }
 
-function atualizarExtra(idx) {
-    // Busca os inputs da última tabela de extras
-    const tab = document.querySelectorAll('#preview table')[1]; // A segunda tabela (de extras)
-    if (!tab) return;
-    const tr = tab.querySelectorAll('tbody tr')[idx];
+function confirmarExtra(idx) {
+    const tr = document.querySelectorAll('#preview table')[1]?.querySelectorAll('tbody tr')[idx];
     if (!tr) return;
     const inputs = tr.querySelectorAll('input');
     extrasManuais[idx].competencia = inputs[0].value;
     extrasManuais[idx].remuneracao = inputs[1].value;
     extrasManuais[idx].nomeEmpregador = inputs[2].value;
+    extrasManuais[idx].confirmado = true;
     mostrarTabelaPdf(registrosExtraidos, extrasManuais);
 }
 
+function voltarParaEdicao(idx) {
+    extrasManuais[idx].confirmado = false;
+    mostrarTabelaPdf(registrosExtraidos, extrasManuais);
+}
 function removerExtra(idx) {
     extrasManuais.splice(idx, 1);
     mostrarTabelaPdf(registrosExtraidos, extrasManuais);
 }
 
-// Input manual
+// --- TELA MANUAL PADRÃO ---
 function addLinha(obj) {
     const tbody = document.getElementById("tbody-lancamentos");
     const tr = document.createElement("tr");

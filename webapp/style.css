@@ -17,7 +17,6 @@ h2 {
     letter-spacing: 1px;
 }
 
-/* ÁREA DE UPLOAD ALINHADA */
 .upload-area {
     display: flex;
     flex-direction: column;
@@ -74,18 +73,55 @@ input[type="file"]:focus {
 .add-btn:hover {
     background: #bbdefb;
 }
+
+/* Botão tick e delete para linha extra */
+.confirm-btn {
+    background: #4caf50;
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    font-size: 1.12em;
+    width: 34px;
+    height: 34px;
+    margin-right: 3px;
+    cursor: pointer;
+    transition: background 0.2s;
+    vertical-align: middle;
+}
+.confirm-btn:hover {
+    background: #388e3c;
+}
 .remove-btn {
     background: none;
     border: none;
     color: #e53935;
     font-size: 22px;
     cursor: pointer;
-    transition: color 0.2s;
     margin-left: 4px;
 }
 .remove-btn:hover {
     color: #b71c1c;
 }
+
+/* Botão lápis (editar) */
+.edit-btn {
+    background: #fffde7;
+    color: #ffb300;
+    border: none;
+    border-radius: 50%;
+    font-size: 1.07em;
+    width: 34px;
+    height: 34px;
+    margin-right: 2px;
+    cursor: pointer;
+    transition: background 0.2s;
+    vertical-align: middle;
+}
+.edit-btn:hover {
+    background: #fff8e1;
+    color: #ff6f00;
+}
+
 input[type="text"], input[type="number"] {
     width: 98%;
     padding: 7px 5px;
@@ -100,6 +136,11 @@ input[type="text"]:focus, input[type="number"]:focus {
     border: 1.5px solid #1976d2;
     background: #fff;
 }
+input[readonly] {
+    color: #666;
+    cursor: default;
+    background: #f2f8ff;
+}
 .tabela-simulacao, table {
     border-collapse: collapse;
     width: 100%;
@@ -108,7 +149,7 @@ input[type="text"]:focus, input[type="number"]:focus {
     box-shadow: 0 3px 16px 0 #0001;
     border-radius: 12px;
     overflow: hidden;
-    max-width: 1100px; /* Tabela maior! */
+    max-width: 1100px;
 }
 th, td {
     border: 1px solid #e0e0e0;
