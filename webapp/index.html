@@ -16,11 +16,13 @@
 
 <!-- Tela de upload PDF -->
 <div id="tela-pdf" class="escondido">
-    <div class="upload-area">
+    <div class="upload-area upload-flex">
         <input type="file" id="file" accept="application/pdf" />
         <button class="simular-btn" onclick="enviarArquivo()">Calcular</button>
     </div>
-    <a href="#" onclick="abrirTelaManual();return false;" style="font-size:0.95em;color:#1976d2;margin-top:22px;">ou informar manualmente</a>
+    <div class="manual-link-box">
+        <a href="#" onclick="abrirTelaManual();return false;">ou informar manualmente</a>
+    </div>
     <div id="preview"></div>
 </div>
 
@@ -42,6 +44,30 @@
     <a href="#" onclick="abrirTelaPdf();return false;" style="font-size:0.95em;color:#1976d2;margin-top:22px;">ou carregar PDF</a>
     <div id="preview-manual"></div>
 </div>
+
+<!-- Tabela paginada -->
+<div id="container-tabela-paginada" class="escondido">
+    <table class="tabela-paginada" id="tabelaPag">
+        <thead>
+        <tr>
+            <th>Competência</th>
+            <th>Soma das Remunerações</th>
+            <th>Teto Vigente</th>
+            <th>Valor Utilizado</th>
+            <th>Valor Corrigido</th>
+            <th>Empregador(es)</th>
+        </tr>
+        </thead>
+        <tbody id="tbodyPag"></tbody>
+    </table>
+    <div class="paginacao" id="paginacao"></div>
+    <div style="text-align:center; margin-top:18px;">
+        <button class="add-btn" id="botao-add-competencia" onclick="adicionarLinhaExtra()" style="display:none;">➕ Adicionar Competência</button>
+    </div>
+</div>
+
+<div id="extras-inputs"></div>
+<div id="box-resultados"></div>
 
 <script src="script.js"></script>
 </body>

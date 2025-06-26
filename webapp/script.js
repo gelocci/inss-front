@@ -1,4 +1,5 @@
-const BACKEND_URL = 'http://172.31.92.192:8080';
+//const BACKEND_URL = 'http://172.31.92.192:8080';
+const BACKEND_URL = 'http://localhost:8080';
 
 function abrirTelaPdf() {
     document.getElementById('tela-inicial').classList.add('escondido');
@@ -8,6 +9,9 @@ function abrirTelaPdf() {
     document.getElementById('file').value = '';
     registrosExtraidos = [];
     extrasManuais = [];
+    ocultarTabelaPaginada();
+    document.getElementById('box-resultados').innerHTML = '';
+    document.getElementById('extras-inputs').innerHTML = '';
 }
 
 function abrirTelaManual() {
@@ -17,10 +21,18 @@ function abrirTelaManual() {
     document.getElementById('preview-manual').innerHTML = '';
     document.getElementById('tbody-lancamentos').innerHTML = '';
     addLinha();
+    ocultarTabelaPaginada();
+    document.getElementById('box-resultados').innerHTML = '';
+    document.getElementById('extras-inputs').innerHTML = '';
 }
 
 let registrosExtraidos = [];
 let extrasManuais = [];
+
+// Variáveis globais de paginação
+let _paginaAtualPag = 1;
+let _registrosPagina = [];
+const _linhasPorPagina = 8;
 
 async function enviarArquivo() {
     const fileInput = document.getElementById('file');
@@ -59,7 +71,11 @@ function mostrarTabelaPdf(registros, extras) {
             }))
     ];
     if (!todos.length) {
-        document.getElementById('preview').innerHTML = '<div class="media-box">Nenhum dado para simular.</div>' + renderExtrasInputs();
+        document.getElementById('preview').innerHTML = '<div class="media-box">Nenhum dado para simular.</div>';
+        ocultarTabelaPaginada();
+        document.getElementById('box-resultados').innerHTML = '';
+        document.getElementById('extras-inputs').innerHTML = '';
+        document.getElementById('botao-add-competencia').style.display = "none";
         return;
     }
     fetch(BACKEND_URL + "/api/cnis/simular-mix", {
@@ -75,46 +91,137 @@ function mostrarTabelaPdf(registros, extras) {
             const [mb, ab] = b.competencia.split('/').map(Number);
             return (aa - ab) || (ma - mb);
         });
-        let soma = 0, qtd = 0;
-        let tabela = `<table class="tabela-simulacao">
-          <thead>
-          <tr>
-            <th>Competência</th>
-            <th>Soma das Remunerações</th>
-            <th>Teto Vigente</th>
-            <th>Valor Utilizado (pré-correção)</th>
-            <th>Valor Corrigido</th>
-            <th>Empregador(es)</th>
-          </tr>
-          </thead>
-          <tbody>`;
+
+        mostrarTabelaPaginada(resp);
+
+        // --- NOVO: cálculo do benefício ---
+        let soma = 0, qtd = 0, tetoFinal = 0;
+        let competenciasDistintas = new Set();
         resp.forEach(r => {
-            tabela += `<tr>
-                <td>${r.competencia}</td>
-                <td>R$ ${isFinite(r.somaRemuneracoes) ? r.somaRemuneracoes.toLocaleString('pt-BR', {minimumFractionDigits: 2}) : ''}</td>
-                <td>R$ ${isFinite(r.teto) ? r.teto.toLocaleString('pt-BR', {minimumFractionDigits: 2}) : ''}</td>
-                <td>R$ ${isFinite(r.valorAntesCorrecao) ? r.valorAntesCorrecao.toLocaleString('pt-BR', {minimumFractionDigits: 2}) : ''}</td>
-                <td><b>R$ ${isFinite(r.valorCorrigido) ? r.valorCorrigido.toLocaleString('pt-BR', {minimumFractionDigits: 2}) : ''}</b></td>
-                <td>${r.nomeEmpregador ? r.nomeEmpregador : ''}</td>
-            </tr>`;
             if (r.valorCorrigido && r.valorCorrigido > 0 && isFinite(r.valorCorrigido)) {
                 soma += r.valorCorrigido;
                 qtd++;
             }
+            if (r.competencia) competenciasDistintas.add(r.competencia);
+            if (r.teto) tetoFinal = r.teto; // Último teto (tabela já está ordenada crescente)
         });
-        tabela += "</tbody></table>";
+
         let media = qtd ? soma / qtd : 0;
+
+        // Quantos meses e anos de contribuição?
+        let mesesContrib = competenciasDistintas.size;
+        let anosContrib = mesesContrib / 12.0;
+
+        // Homem
+        let percHomem = 60 + Math.max(0, Math.floor(anosContrib - 20)) * 2;
+        // Mulher
+        let percMulher = 60 + Math.max(0, Math.floor(anosContrib - 15)) * 2;
+
+        percHomem = Math.min(percHomem, 100);
+        percMulher = Math.min(percMulher, 100);
+
+        // Valor estimado (limitado ao teto final)
+        let valHomem = Math.min((percHomem / 100) * media, tetoFinal);
+        let valMulher = Math.min((percMulher / 100) * media, tetoFinal);
+
+        // Média dos salários
         const mediaBox = `<div class="media-box">
-            <b>Média dos salários de contribuição corrigidos e limitados ao teto:</b><br>
-            <span style="font-size:2em;color:#1976d2;">R$ ${media.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+            Média dos salários de contribuição corrigidos: <b>R$ ${media.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</b>
         </div>`;
-        const botaoMais = `<div style="margin-top:10px;">
-            <button class="add-btn" onclick="adicionarLinhaExtra()" title="Adicionar competência extra">➕ Adicionar Competência</button>
-        </div>`;
-        document.getElementById('preview').innerHTML = tabela + mediaBox + botaoMais + renderExtrasInputs();
+
+        // Nova tabela de benefício
+        const tabelaBeneficio = `
+        <div class="media-box" style="margin-top:25px;">
+            <b>Simulação do valor estimado da aposentadoria:</b>
+            <table class="tabela-simulacao" style="margin-top:15px;font-size:1em;max-width:600px;">
+                <thead>
+                    <tr>
+                        <th></th>
+                        <th>Homem</th>
+                        <th>Mulher</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><b>Meses de contribuição</b></td>
+                        <td colspan="2">${mesesContrib} (${anosContrib.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})} anos)</td>
+                    </tr>
+                    <tr>
+                        <td><b>Percentual aplicado</b></td>
+                        <td>${percHomem}%</td>
+                        <td>${percMulher}%</td>
+                    </tr>
+                    <tr>
+                        <td><b>Valor estimado<br>(limitado ao teto)</b></td>
+                        <td><b style="color:#1976d2;">R$ ${valHomem.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}</b></td>
+                        <td><b style="color:#1976d2;">R$ ${valMulher.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}</b></td>
+                    </tr>
+                    <tr>
+                        <td>Teto Previdenciário do último mês</td>
+                        <td colspan="2"><b>R$ ${tetoFinal.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}</b></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        `;
+
+        document.getElementById('box-resultados').innerHTML = mediaBox + tabelaBeneficio;
+        document.getElementById('botao-add-competencia').style.display = "inline-block";
+        document.getElementById('extras-inputs').innerHTML = renderExtrasInputs();
     });
 }
 
+// --- BLOCO DA TABELA PAGINADA ---
+function mostrarTabelaPaginada(registros) {
+    _registrosPagina = registros;
+    _paginaAtualPag = 1;
+    renderPaginaPaginada();
+    document.getElementById("container-tabela-paginada").classList.remove("escondido");
+}
+
+function renderPaginaPaginada() {
+    const totalPaginas = Math.max(1, Math.ceil(_registrosPagina.length / _linhasPorPagina));
+    if (_paginaAtualPag > totalPaginas) _paginaAtualPag = totalPaginas;
+    if (_paginaAtualPag < 1) _paginaAtualPag = 1;
+    const inicio = (_paginaAtualPag - 1) * _linhasPorPagina;
+    const fim = inicio + _linhasPorPagina;
+    const linhas = _registrosPagina.slice(inicio, fim);
+
+    let tbody = document.getElementById('tbodyPag');
+    tbody.innerHTML = '';
+    linhas.forEach(r => {
+        tbody.innerHTML += `<tr>
+            <td>${r.competencia}</td>
+            <td>R$ ${isFinite(r.somaRemuneracoes) ? r.somaRemuneracoes.toLocaleString('pt-BR', {minimumFractionDigits: 2}) : ''}</td>
+            <td>R$ ${isFinite(r.teto) ? r.teto.toLocaleString('pt-BR', {minimumFractionDigits: 2}) : ''}</td>
+            <td>R$ ${isFinite(r.valorAntesCorrecao) ? r.valorAntesCorrecao.toLocaleString('pt-BR', {minimumFractionDigits: 2}) : ''}</td>
+            <td><b>R$ ${isFinite(r.valorCorrigido) ? r.valorCorrigido.toLocaleString('pt-BR', {minimumFractionDigits: 2}) : ''}</b></td>
+            <td>${r.nomeEmpregador ? r.nomeEmpregador : ''}</td>
+        </tr>`;
+    });
+    // Preenche linhas restantes para manter layout
+    for (let i = linhas.length; i < _linhasPorPagina; i++) {
+        tbody.innerHTML += `<tr>
+            <td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td>
+        </tr>`;
+    }
+    // Navegação
+    let nav = '';
+    nav += `<button onclick="_paginaAtualPag=1; renderPaginaPaginada()" ${_paginaAtualPag==1?'disabled':''}>&lt;&lt;</button>`;
+    nav += `<button onclick="_paginaAtualPag--; renderPaginaPaginada()" ${_paginaAtualPag==1?'disabled':''}>&lt;</button>`;
+    nav += ` Página ${_paginaAtualPag} de ${totalPaginas} `;
+    nav += `<button onclick="_paginaAtualPag++; renderPaginaPaginada()" ${_paginaAtualPag==totalPaginas?'disabled':''}>&gt;</button>`;
+    nav += `<button onclick="_paginaAtualPag=${totalPaginas}; renderPaginaPaginada()" ${_paginaAtualPag==totalPaginas?'disabled':''}>&gt;&gt;</button>`;
+    document.getElementById('paginacao').innerHTML = nav;
+}
+
+function ocultarTabelaPaginada() {
+    document.getElementById("container-tabela-paginada").classList.add("escondido");
+    document.getElementById('botao-add-competencia').style.display = "none";
+    document.getElementById('extras-inputs').innerHTML = '';
+}
+
+// --- EXTRAS (mantido igual) ---
 function adicionarLinhaExtra() {
     extrasManuais.push({ competencia: '', remuneracao: '', nomeEmpregador: '', confirmado: false });
     mostrarTabelaPdf(registrosExtraidos, extrasManuais);
@@ -122,7 +229,7 @@ function adicionarLinhaExtra() {
 
 function renderExtrasInputs() {
     if (!extrasManuais.length) return '';
-    let linhas = `<table style="margin-top:15px;width:100%;max-width:1100px;"><tbody>`;
+    let linhas = `<table style="margin:12px auto 0 auto;width:100%;max-width:1100px;"><tbody>`;
     extrasManuais.forEach((ex, idx) => {
         if (!ex.confirmado) {
             linhas += `<tr>
@@ -151,7 +258,7 @@ function renderExtrasInputs() {
 }
 
 function confirmarExtra(idx) {
-    const tr = document.querySelectorAll('#preview table')[1]?.querySelectorAll('tbody tr')[idx];
+    const tr = document.querySelectorAll('#extras-inputs table tbody tr')[idx];
     if (!tr) return;
     const inputs = tr.querySelectorAll('input');
     extrasManuais[idx].competencia = inputs[0].value;
@@ -222,7 +329,27 @@ function mostrarTabelaComMedia(registros) {
         const [mb, ab] = b.competencia.split('/').map(Number);
         return (aa - ab) || (ma - mb);
     });
-    let soma = 0, qtd = 0;
+    let soma = 0, qtd = 0, tetoFinal = 0;
+    let competenciasDistintas = new Set();
+    registros.forEach(r => {
+        if (r.valorCorrigido && r.valorCorrigido > 0 && isFinite(r.valorCorrigido)) {
+            soma += r.valorCorrigido;
+            qtd++;
+        }
+        if (r.competencia) competenciasDistintas.add(r.competencia);
+        if (r.teto) tetoFinal = r.teto;
+    });
+    let media = qtd ? soma / qtd : 0;
+    // NOVO: cálculo benefício manual
+    let mesesContrib = competenciasDistintas.size;
+    let anosContrib = mesesContrib / 12.0;
+    let percHomem = 60 + Math.max(0, Math.floor(anosContrib - 20)) * 2;
+    let percMulher = 60 + Math.max(0, Math.floor(anosContrib - 15)) * 2;
+    percHomem = Math.min(percHomem, 100);
+    percMulher = Math.min(percMulher, 100);
+    let valHomem = Math.min((percHomem / 100) * media, tetoFinal);
+    let valMulher = Math.min((percMulher / 100) * media, tetoFinal);
+
     let tabela = `<table class="tabela-simulacao">
       <thead>
       <tr>
@@ -244,22 +371,54 @@ function mostrarTabelaComMedia(registros) {
             <td><b>R$ ${isFinite(r.valorCorrigido) ? r.valorCorrigido.toLocaleString('pt-BR', {minimumFractionDigits: 2}) : ''}</b></td>
             <td>${r.nomeEmpregador ? r.nomeEmpregador : ''}</td>
         </tr>`;
-        if (r.valorCorrigido && r.valorCorrigido > 0 && isFinite(r.valorCorrigido)) {
-            soma += r.valorCorrigido;
-            qtd++;
-        }
     });
     tabela += "</tbody></table>";
-    let media = qtd ? soma / qtd : 0;
+
     const mediaBox = `<div class="media-box">
-        <b>Média dos salários de contribuição corrigidos e limitados ao teto:</b><br>
-        <span style="font-size:2em;color:#1976d2;">R$ ${media.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+        Média dos salários de contribuição corrigidos: <b>R$ ${media.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</b>
     </div>`;
-    document.getElementById('preview-manual').innerHTML = tabela + mediaBox;
+    const tabelaBeneficio = `
+    <div class="media-box" style="margin-top:25px;">
+        <b>Simulação do valor estimado da aposentadoria:</b>
+        <table class="tabela-simulacao" style="margin-top:15px;font-size:1em;max-width:600px;">
+            <thead>
+                <tr>
+                    <th></th>
+                    <th>Homem</th>
+                    <th>Mulher</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><b>Meses de contribuição</b></td>
+                    <td colspan="2">${mesesContrib} (${anosContrib.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})} anos)</td>
+                </tr>
+                <tr>
+                    <td><b>Percentual aplicado</b></td>
+                    <td>${percHomem}%</td>
+                    <td>${percMulher}%</td>
+                </tr>
+                <tr>
+                    <td><b>Valor estimado<br>(limitado ao teto)</b></td>
+                    <td><b style="color:#1976d2;">R$ ${valHomem.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}</b></td>
+                    <td><b style="color:#1976d2;">R$ ${valMulher.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}</b></td>
+                </tr>
+                <tr>
+                    <td>Teto Previdenciário do último mês</td>
+                    <td colspan="2"><b>R$ ${tetoFinal.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}</b></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    `;
+    document.getElementById('preview-manual').innerHTML = tabela + mediaBox + tabelaBeneficio;
 }
 
 window.onload = () => {
     document.getElementById('tela-inicial').classList.remove('escondido');
     document.getElementById('tela-pdf').classList.add('escondido');
     document.getElementById('tela-manual').classList.add('escondido');
+    ocultarTabelaPaginada();
+    document.getElementById('box-resultados').innerHTML = '';
+    document.getElementById('extras-inputs').innerHTML = '';
 };

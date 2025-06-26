@@ -27,6 +27,14 @@ h2 {
     max-width: 400px;
 }
 
+/* NOVO: Coloca campo de upload e botão lado a lado */
+.upload-flex {
+    flex-direction: row;
+    gap: 18px;
+    align-items: flex-end;
+    margin-bottom: 6px;
+}
+
 input[type="file"] {
     padding: 13px 12px;
     background: #fff;
@@ -34,12 +42,24 @@ input[type="file"] {
     border-radius: 5px;
     margin: 0;
     font-size: 1.02em;
-    width: 100%;
+    width: 220px;
     box-sizing: border-box;
     transition: border 0.2s;
 }
 input[type="file"]:focus {
     border: 1.5px solid #1976d2;
+}
+
+.manual-link-box {
+    margin: 6px 0 0 0;
+    width: 100%;
+    display: flex;
+    align-items: flex-start;
+}
+.manual-link-box a {
+    font-size: 0.98em;
+    color: #1976d2;
+    margin: 0 0 0 2px;
 }
 
 .simular-btn, .add-btn {
@@ -72,54 +92,6 @@ input[type="file"]:focus {
 }
 .add-btn:hover {
     background: #bbdefb;
-}
-
-/* Botão tick e delete para linha extra */
-.confirm-btn {
-    background: #4caf50;
-    color: #fff;
-    border: none;
-    border-radius: 50%;
-    font-size: 1.12em;
-    width: 34px;
-    height: 34px;
-    margin-right: 3px;
-    cursor: pointer;
-    transition: background 0.2s;
-    vertical-align: middle;
-}
-.confirm-btn:hover {
-    background: #388e3c;
-}
-.remove-btn {
-    background: none;
-    border: none;
-    color: #e53935;
-    font-size: 22px;
-    cursor: pointer;
-    margin-left: 4px;
-}
-.remove-btn:hover {
-    color: #b71c1c;
-}
-
-/* Botão lápis (editar) */
-.edit-btn {
-    background: #fffde7;
-    color: #ffb300;
-    border: none;
-    border-radius: 50%;
-    font-size: 1.07em;
-    width: 34px;
-    height: 34px;
-    margin-right: 2px;
-    cursor: pointer;
-    transition: background 0.2s;
-    vertical-align: middle;
-}
-.edit-btn:hover {
-    background: #fff8e1;
-    color: #ff6f00;
 }
 
 input[type="text"], input[type="number"] {
@@ -172,14 +144,14 @@ tbody tr:hover {
     margin: 20px auto 0 auto;
     width: 600px;
     max-width: 98%;
-    background: #e3f2fd;
-    border: 2px solid #2196f3;
+    background: #f3f7fb;
+    border: 1px solid #bbdefb;
     border-radius: 8px;
-    padding: 24px;
-    font-size: 1.22em;
-    color: #135193;
+    padding: 18px;
+    font-size: 1.07em;
+    color: #1565c0;
     text-align: center;
-    font-weight: bold;
+    font-weight: normal;
     box-shadow: 0 2px 12px #90caf988;
 }
 .escondido {
@@ -199,4 +171,49 @@ a:hover {
     .tabela-simulacao, table, .media-box { width: 98%; max-width: 100vw; }
     h2 { font-size: 1.3em;}
     .upload-area { max-width: 98vw;}
+}
+
+/* --- Tabela paginada --- */
+.tabela-paginada {
+    width: 100%;
+    max-width: 1000px;
+    margin: 0 auto;
+    border-collapse: collapse;
+    background: #fff;
+    font-size: 0.93em; /* fonte menor */
+    box-shadow: 0 2px 10px #0001;
+}
+.tabela-paginada th, .tabela-paginada td {
+    border: 1px solid #e0e0e0;
+    padding: 6px 5px;
+    text-align: center;
+    font-size: 0.94em;
+}
+.tabela-paginada th {
+    background: #e3f2fd;
+    color: #1976d2;
+    font-weight: bold;
+}
+.tabela-paginada tr:nth-child(odd) { background: #f9fbff; }
+.tabela-paginada tr:hover { background: #e3f2fd; }
+.paginacao {
+    margin-top: 10px;
+    text-align: center;
+    font-size: 0.95em;
+}
+.paginacao button {
+    padding: 3px 10px;
+    margin: 0 2px;
+    background: #e3f2fd;
+    border: 1px solid #1976d2;
+    color: #1976d2;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.93em;
+}
+.paginacao button:disabled {
+    background: #eee;
+    color: #888;
+    border: 1px solid #aaa;
+    cursor: not-allowed;
 }
