@@ -1,5 +1,6 @@
-const BACKEND_URL = 'http://172.31.92.192:8080';
+//const BACKEND_URL = 'http://172.31.92.192:8080';
 //const BACKEND_URL = 'http://localhost:8080';
+const BACKEND_URL = 'https://inss-api.gelocci.com.br';
 
 function isCompetenciaPosJul94(competencia) {
     // formato mm/aaaa
