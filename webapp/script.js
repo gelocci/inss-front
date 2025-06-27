@@ -1,5 +1,47 @@
-//const BACKEND_URL = 'http://172.31.92.192:8080';
-const BACKEND_URL = 'http://localhost:8080';
+const BACKEND_URL = 'http://172.31.92.192:8080';
+//const BACKEND_URL = 'http://localhost:8080';
+
+function isCompetenciaPosJul94(competencia) {
+    // formato mm/aaaa
+    if (!competencia) return false;
+    const [mes, ano] = competencia.split('/').map(Number);
+    return (ano > 1994) || (ano === 1994 && mes >= 7);
+}
+
+function proximaCompetencia(competencia) {
+    if (!competencia || !/^\d{2}\/\d{4}$/.test(competencia)) return '';
+    let [mes, ano] = competencia.split('/').map(Number);
+    mes++;
+    if (mes > 12) {
+        mes = 1;
+        ano++;
+    }
+    return (mes < 10 ? '0' : '') + mes + '/' + ano;
+}
+
+function encontrarUltimoLancamento(array) {
+    // Busca o confirmado mais recente pela competência
+    let filtrados = array.filter(r => r.confirmado && r.competencia && /^\d{2}\/\d{4}$/.test(r.competencia));
+    if (!filtrados.length) return null;
+    filtrados.sort((a, b) => {
+        const [mb, ab] = b.competencia.split('/').map(Number);
+        const [ma, aa] = a.competencia.split('/').map(Number);
+        return (ab - aa) || (mb - ma);
+    });
+    return filtrados[0];
+}
+
+function encontrarUltimoLancamentoSimples(array) {
+    // Para a tela manual (array de objetos com competencia)
+    let filtrados = array.filter(r => r.competencia && /^\d{2}\/\d{4}$/.test(r.competencia));
+    if (!filtrados.length) return null;
+    filtrados.sort((a, b) => {
+        const [mb, ab] = b.competencia.split('/').map(Number);
+        const [ma, aa] = a.competencia.split('/').map(Number);
+        return (ab - aa) || (mb - ma);
+    });
+    return filtrados[0];
+}
 
 function abrirTelaPdf() {
     document.getElementById('tela-inicial').classList.add('escondido');
@@ -98,7 +140,7 @@ function mostrarTabelaPdf(registros, extras) {
         let soma = 0, qtd = 0, tetoFinal = 0;
         let competenciasDistintas = new Set();
         resp.forEach(r => {
-            if (r.valorCorrigido && r.valorCorrigido > 0 && isFinite(r.valorCorrigido)) {
+            if (isCompetenciaPosJul94(r.competencia) && r.valorCorrigido && r.valorCorrigido > 0 && isFinite(r.valorCorrigido)) {
                 soma += r.valorCorrigido;
                 qtd++;
             }
@@ -124,9 +166,13 @@ function mostrarTabelaPdf(registros, extras) {
         let valHomem = Math.min((percHomem / 100) * media, tetoFinal);
         let valMulher = Math.min((percMulher / 100) * media, tetoFinal);
 
-        // Média dos salários
+        // Média dos salários (novo aviso)
+        const aviso = `<div class="info-box" style="background:#fff3cd;color:#856404;border:1px solid #ffeeba;margin-bottom:18px;padding:10px 18px;">
+            <b>Atenção:</b> Salários de contribuição <b>anteriores a julho/1994</b> não entram na média, mas contam no tempo de contribuição.
+        </div>`;
+
         const mediaBox = `<div class="media-box">
-            Média dos salários de contribuição corrigidos: <b>R$ ${media.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</b>
+            Média dos salários de contribuição corrigidos (após 07/1994): <b>R$ ${media.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</b>
         </div>`;
 
         // Nova tabela de benefício
@@ -165,7 +211,7 @@ function mostrarTabelaPdf(registros, extras) {
         </div>
         `;
 
-        document.getElementById('box-resultados').innerHTML = mediaBox + tabelaBeneficio;
+        document.getElementById('box-resultados').innerHTML = aviso + mediaBox + tabelaBeneficio;
         document.getElementById('botao-add-competencia').style.display = "inline-block";
         document.getElementById('extras-inputs').innerHTML = renderExtrasInputs();
     });
@@ -190,8 +236,9 @@ function renderPaginaPaginada() {
     let tbody = document.getElementById('tbodyPag');
     tbody.innerHTML = '';
     linhas.forEach(r => {
-        tbody.innerHTML += `<tr>
-            <td>${r.competencia}</td>
+        const foraMedia = !isCompetenciaPosJul94(r.competencia);
+        tbody.innerHTML += `<tr${foraMedia ? ' style="background:#f5f5f5;color:#bbb;"' : ''}>
+            <td>${r.competencia}${foraMedia ? ' <span title="Não entra na média" style="color:#fbbc05;">*</span>' : ''}</td>
             <td>R$ ${isFinite(r.somaRemuneracoes) ? r.somaRemuneracoes.toLocaleString('pt-BR', {minimumFractionDigits: 2}) : ''}</td>
             <td>R$ ${isFinite(r.teto) ? r.teto.toLocaleString('pt-BR', {minimumFractionDigits: 2}) : ''}</td>
             <td>R$ ${isFinite(r.valorAntesCorrecao) ? r.valorAntesCorrecao.toLocaleString('pt-BR', {minimumFractionDigits: 2}) : ''}</td>
@@ -221,9 +268,30 @@ function ocultarTabelaPaginada() {
     document.getElementById('extras-inputs').innerHTML = '';
 }
 
-// --- EXTRAS (mantido igual) ---
+// --- EXTRAS (MELHORADO) ---
 function adicionarLinhaExtra() {
-    extrasManuais.push({ competencia: '', remuneracao: '', nomeEmpregador: '', confirmado: false });
+    let competencia = '', remuneracao = '', nomeEmpregador = '';
+    // Busca último lançamento confirmado (manual ou extra)
+    let ultimo = encontrarUltimoLancamento(extrasManuais);
+
+    // Se não achou, pega o mais recente do PDF extraído
+    if (!ultimo) {
+        let validos = registrosExtraidos.filter(r => r.competencia && /^\d{2}\/\d{4}$/.test(r.competencia));
+        if (validos.length) {
+            validos.sort((a, b) => {
+                const [mb, ab] = b.competencia.split('/').map(Number);
+                const [ma, aa] = a.competencia.split('/').map(Number);
+                return (ab - aa) || (mb - ma);
+            });
+            ultimo = validos[0];
+        }
+    }
+    if (ultimo && ultimo.competencia) {
+        competencia = proximaCompetencia(ultimo.competencia);
+        remuneracao = ultimo.remuneracao;
+        nomeEmpregador = ultimo.nomeEmpregador || '';
+    }
+    extrasManuais.push({ competencia, remuneracao, nomeEmpregador, confirmado: false });
     mostrarTabelaPdf(registrosExtraidos, extrasManuais);
 }
 
@@ -277,14 +345,35 @@ function removerExtra(idx) {
     mostrarTabelaPdf(registrosExtraidos, extrasManuais);
 }
 
-// --- TELA MANUAL PADRÃO ---
+// --- TELA MANUAL PADRÃO (MELHORADO) ---
 function addLinha(obj) {
     const tbody = document.getElementById("tbody-lancamentos");
+    let competencia = '', remuneracao = '', nomeEmpregador = '';
+    // Sugere próxima competência e valor com base no mais recente
+    let linhas = Array.from(tbody.querySelectorAll('tr')).map(tr => {
+        let inputs = tr.querySelectorAll('input');
+        return {
+            competencia: inputs[0]?.value || '',
+            remuneracao: inputs[1]?.value || '',
+            nomeEmpregador: inputs[2]?.value || ''
+        };
+    });
+    let ultimo = encontrarUltimoLancamentoSimples(linhas);
+
+    if (!obj && ultimo && ultimo.competencia) {
+        competencia = proximaCompetencia(ultimo.competencia);
+        remuneracao = ultimo.remuneracao;
+        nomeEmpregador = ultimo.nomeEmpregador || '';
+    } else if (obj) {
+        competencia = obj?.competencia || '';
+        remuneracao = obj?.remuneracao || '';
+        nomeEmpregador = obj?.nomeEmpregador || '';
+    }
     const tr = document.createElement("tr");
     tr.innerHTML = `
-        <td><input type="text" placeholder="mm/aaaa" maxlength="7" value="${obj?.competencia || ''}" /></td>
-        <td><input type="number" step="0.01" min="0" placeholder="Remuneração" value="${obj?.remuneracao || ''}" /></td>
-        <td><input type="text" placeholder="Empregador (opcional)" value="${obj?.nomeEmpregador || ''}" /></td>
+        <td><input type="text" placeholder="mm/aaaa" maxlength="7" value="${competencia}" /></td>
+        <td><input type="number" step="0.01" min="0" placeholder="Remuneração" value="${remuneracao}" /></td>
+        <td><input type="text" placeholder="Empregador (opcional)" value="${nomeEmpregador}" /></td>
         <td><button class="remove-btn" onclick="this.parentElement.parentElement.remove()">🗑️</button></td>
     `;
     tbody.appendChild(tr);
@@ -332,7 +421,7 @@ function mostrarTabelaComMedia(registros) {
     let soma = 0, qtd = 0, tetoFinal = 0;
     let competenciasDistintas = new Set();
     registros.forEach(r => {
-        if (r.valorCorrigido && r.valorCorrigido > 0 && isFinite(r.valorCorrigido)) {
+        if (isCompetenciaPosJul94(r.competencia) && r.valorCorrigido && r.valorCorrigido > 0 && isFinite(r.valorCorrigido)) {
             soma += r.valorCorrigido;
             qtd++;
         }
@@ -350,6 +439,10 @@ function mostrarTabelaComMedia(registros) {
     let valHomem = Math.min((percHomem / 100) * media, tetoFinal);
     let valMulher = Math.min((percMulher / 100) * media, tetoFinal);
 
+    let aviso = `<div class="info-box" style="background:#fff3cd;color:#856404;border:1px solid #ffeeba;margin-bottom:18px;padding:10px 18px;">
+        <b>Atenção:</b> Salários de contribuição <b>anteriores a julho/1994</b> não entram na média, mas contam no tempo de contribuição.
+    </div>`;
+
     let tabela = `<table class="tabela-simulacao">
       <thead>
       <tr>
@@ -363,8 +456,9 @@ function mostrarTabelaComMedia(registros) {
       </thead>
       <tbody>`;
     registros.forEach(r => {
-        tabela += `<tr>
-            <td>${r.competencia}</td>
+        const foraMedia = !isCompetenciaPosJul94(r.competencia);
+        tabela += `<tr${foraMedia ? ' style="background:#f5f5f5;color:#bbb;"' : ''}>
+            <td>${r.competencia}${foraMedia ? ' <span title="Não entra na média" style="color:#fbbc05;">*</span>' : ''}</td>
             <td>R$ ${isFinite(r.somaRemuneracoes) ? r.somaRemuneracoes.toLocaleString('pt-BR', {minimumFractionDigits: 2}) : ''}</td>
             <td>R$ ${isFinite(r.teto) ? r.teto.toLocaleString('pt-BR', {minimumFractionDigits: 2}) : ''}</td>
             <td>R$ ${isFinite(r.valorAntesCorrecao) ? r.valorAntesCorrecao.toLocaleString('pt-BR', {minimumFractionDigits: 2}) : ''}</td>
@@ -375,7 +469,7 @@ function mostrarTabelaComMedia(registros) {
     tabela += "</tbody></table>";
 
     const mediaBox = `<div class="media-box">
-        Média dos salários de contribuição corrigidos: <b>R$ ${media.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</b>
+        Média dos salários de contribuição corrigidos (após 07/1994): <b>R$ ${media.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</b>
     </div>`;
     const tabelaBeneficio = `
     <div class="media-box" style="margin-top:25px;">
@@ -411,7 +505,7 @@ function mostrarTabelaComMedia(registros) {
         </table>
     </div>
     `;
-    document.getElementById('preview-manual').innerHTML = tabela + mediaBox + tabelaBeneficio;
+    document.getElementById('preview-manual').innerHTML = aviso + tabela + mediaBox + tabelaBeneficio;
 }
 
 window.onload = () => {
